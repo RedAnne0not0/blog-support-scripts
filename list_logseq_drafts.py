@@ -1,44 +1,135 @@
-import os
-from pathlib import Path
-import yaml  # requires PyYAML, a common YAML parser
+# list_logseq_drafts.py — Draft Detection for Hugo Blog
 
-# Step 1: Define source and target directories
+# This script scans Markdown files in a Logseq graph and identifies which ones are drafts for a given blog
+# It does so by parsing the YAML front matter block for a custom 'blog' field (e.g. blog-personal)
+# Only files that match the configured blog name are printed with their metadata
+
+from pathlib import Path  # pathlib is used for cleaner and more flexible file path handling
+import yaml  # PyYAML is used to parse YAML front matter (install with: pip install pyyaml)
+import argparse  #required for CLI arguments
+
+# ========== Configuration ==========
+# Toggle verbose logging (non-critical skips, warnings)
+# VERBOSE = False ## Deprecated now uses CLI argument
+
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description="Process Logseq blog drafts.")  # sets up a parser and provides a description that will display when the script is called with `--help`
+parser.add_argument("--verbose", action="store_true", help="Enable verbose output")  # defines a --verbose flag
+args = parser.parse_args()
+# TODO: Add --target-blog argument to allow dynamic selection of blog (e.g., blog-personal, blog-multiplicite)
+# This will replace the hardcoded TARGET_BLOG value.
+
+# Use command-line argument to control verbosity
+VERBOSE = args.verbose  # Assigns VERBOSE the value `args.verbose`
+
+# Define the blog this script is targeting
+TARGET_BLOG = "blog-personal"
+
+# Define the source directory: where your Logseq pages are located
 source_dir = Path("~/Projects/logseq/knowledge-graph/pages/").expanduser()
+
+# Define the destination folder in your Hugo blog (used for export - future capability)
 target_dir = Path("~/Projects/blogs/blog-personal/content/posts/").expanduser()
 
-# Step 2: Ensure target directory exists
+# Ensure the target directory exists; if not, create it
+# 'parents=True' allows creation of nested directories
+# 'exist_ok=True' prevents error if the directory already exists
 target_dir.mkdir(parents=True, exist_ok=True)
 
-# Step 3: List markdown files in source directory
+# ========== Front Matter Extraction Function ==========
+# This function extracts and parses the front matter from a Markdown file
+# It returns the front matter as a dictionary (if successful) and the line index where the body begins
+# If parsing fails or no valid front matter is found, it returns (None, None)
+def extract_front_matter(lines):
+    in_front_matter = False
+    front_matter_lines = []
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+
+        if not in_front_matter:
+            if stripped == "---":
+                in_front_matter = True  # Start recording front matter
+                continue
+            elif stripped.startswith("- ") or stripped.startswith("# "):
+                # Avoid interpreting list items or headings as front matter
+                break
+            else:
+                continue  # Ignore other lines before front matter starts
+
+        elif stripped == "---":
+            # End of front matter block
+ 
+            # # NOTE on edge case handling (see test case 6):
+            # This script intentionally does not support YAML front matter that is embedded
+            # within Markdown-style bullet lists (e.g., lines like `- ---`, `- title: Foo`, etc).
+            #
+            # Although our parser strips leading bullet characters (`-`, `*`, etc) when scanning
+            # for delimiters, lines like `- title: Foo` are still treated by PyYAML as part of
+            # a list, not a mapping. This causes YAML parsing to fail, since front matter is
+            # expected to be a dictionary (mapping) with key-value pairs.
+            #
+            # For robustness and clarity, we do not attempt to parse or normalize YAML that
+            # appears to be inside a list structure. If this becomes a real-world issue,
+            # one could extend the parser to:
+            #   - Detect list-style front matter and try to reformat it into a mapping
+            #   - Or issue a warning that such formatting is unsupported
+ 
+            try:
+                front_matter_raw = "\n".join(front_matter_lines)
+                front_matter = yaml.safe_load(front_matter_raw)
+                return front_matter, i  # Return parsed YAML and index of closing '---'
+            except yaml.YAMLError as e:
+                print(f"⚠️ YAML parsing error: {e}")
+                return None, None
+
+        else:
+            front_matter_lines.append(line)  # Accumulate lines within front matter
+
+    # If the loop completes without closing front matter, then no valid front matter is found
+    return None, None
+
+# Print header to clarify output purpose
+print(f"🔍 Scanning for drafts meant for: {TARGET_BLOG}")
+
+# Get all markdown files in the Logseq pages directory
 markdown_files = list(source_dir.glob("*.md"))
 
-# Step 4: Process each file
+# ========== Main Processing Loop ==========
+# Loop through each .md file and inspect front matter
 for md_file in markdown_files:
+    if VERBOSE:
+        print(f"\nProcessing: {md_file.name}")
+
+    # Read the file line by line
     with md_file.open("r", encoding="utf-8") as f:
-        content = f.read()
+        lines = f.read().splitlines()
 
-    lines = content.splitlines()
+    # Attempt to extract front matter
+    front_matter, _ = extract_front_matter(lines)
 
-    if "---" in lines:
-        start = lines.index("---")
-        try:
-            end = lines.index("---", start + 1)
-            front_matter_raw = "\n".join(lines[start + 1:end])
-            body = "\n".join(lines[end + 1:])
-            front_matter = yaml.safe_load(front_matter_raw)
+    # Check that parsing worked and returned a dictionary
+    if not isinstance(front_matter, dict):
+        if VERBOSE:
+            print(f"⚠️ {md_file.name}: Front matter is not a valid dictionary.")
+        continue
 
-            # Filter for blog-personal
-            if front_matter.get("blog") != "blog-personal":
-                continue  # Silent skip
+    # Skip files not meant for this specific blog
+    if front_matter.get("blog") != TARGET_BLOG:
+        if VERBOSE:
+            print(f"⏩ {md_file.name}: Skipping — not for {TARGET_BLOG}")
+        continue
 
-            # ✅ Show only relevant matches
-            print(f"✅ {md_file.name}: matches blog-personal")
-            print(f"  Title: {front_matter.get('title')}")
-            print(f"  Date: {front_matter.get('date')}")
-            print(f"  Slug: {front_matter.get('slug')}")
-        except ValueError:
-            print(f"⚠️ {md_file.name}: Could not find second '---'")
-        except yaml.YAMLError as e:
-            print(f"⚠️ {md_file.name}: YAML parsing error: {e}")
-    else:
-        continue  # Silent skip
+    # Output metadata if file matches blog
+    print(f"✅  {md_file.name}: matches {TARGET_BLOG}")
+    # Define keys and default fallback values
+    keys_and_defaults = {
+        "title": "<no title>",
+        "date": "<no date>",
+        "slug": "<no slug>"
+    }
+
+    # Loop through each key and print the value (or fallback if missing)
+    for key, default in keys_and_defaults.items():
+        value = front_matter.get(key, default)
+        print(f"  {key.capitalize()}: {value}")
