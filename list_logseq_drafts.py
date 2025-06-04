@@ -1,4 +1,4 @@
-# list_logseq_drafts.py
+# list_logseq_drafts.py — Draft Detection for Hugo Blog
 
 # This script scans Markdown files in a Logseq graph and identifies which ones are drafts for a given blog
 # It does so by parsing the YAML front matter block for a custom 'blog' field (e.g. blog-personal)
@@ -7,13 +7,17 @@
 from pathlib import Path  # pathlib is used for cleaner and more flexible file path handling
 import yaml  # PyYAML is used to parse YAML front matter (install with: pip install pyyaml)
 
-# Define the target blog to filter on
+# ========== Configuration ==========
+# Toggle verbose logging (non-critical skips, warnings)
+VERBOSE = False 
+
+# Define the blog this script is targeting
 TARGET_BLOG = "blog-personal"
 
 # Define the source directory: where your Logseq pages are located
 source_dir = Path("~/Projects/logseq/knowledge-graph/pages/").expanduser()
 
-# Define the destination folder in your Hugo blog (used later for export)
+# Define the destination folder in your Hugo blog (used for export - future capability)
 target_dir = Path("~/Projects/blogs/blog-personal/content/posts/").expanduser()
 
 # Ensure the target directory exists; if not, create it
@@ -21,6 +25,7 @@ target_dir = Path("~/Projects/blogs/blog-personal/content/posts/").expanduser()
 # 'exist_ok=True' prevents error if the directory already exists
 target_dir.mkdir(parents=True, exist_ok=True)
 
+# ========== Front Matter Extraction Function ==========
 # This function extracts and parses the front matter from a Markdown file
 # It returns the front matter as a dictionary (if successful) and the line index where the body begins
 # If parsing fails or no valid front matter is found, it returns (None, None)
@@ -70,7 +75,8 @@ def extract_front_matter(lines):
         else:
             front_matter_lines.append(line)  # Accumulate lines within front matter
 
-    return None, None  # No valid front matter found
+    # If the loop completes without closing front matter, then no valid front matter is found
+    return None, None
 
 # Print header to clarify output purpose
 print(f"🔍 Scanning for drafts meant for: {TARGET_BLOG}")
@@ -78,9 +84,11 @@ print(f"🔍 Scanning for drafts meant for: {TARGET_BLOG}")
 # Get all markdown files in the Logseq pages directory
 markdown_files = list(source_dir.glob("*.md"))
 
+# ========== Main Processing Loop ==========
 # Loop through each .md file and inspect front matter
 for md_file in markdown_files:
-    print(f"\nProcessing: {md_file.name}")
+    if VERBOSE:
+        print(f"\nProcessing: {md_file.name}")
 
     # Read the file line by line
     with md_file.open("r", encoding="utf-8") as f:
@@ -91,17 +99,26 @@ for md_file in markdown_files:
 
     # Check that parsing worked and returned a dictionary
     if not isinstance(front_matter, dict):
-        print(f"⚠️ {md_file.name}: Front matter is not a valid dictionary.")
+        if VERBOSE:
+            print(f"⚠️ {md_file.name}: Front matter is not a valid dictionary.")
         continue
 
     # Skip files not meant for this specific blog
     if front_matter.get("blog") != TARGET_BLOG:
-        print(f"⏩ {md_file.name}: Skipping — not for {TARGET_BLOG}")
+        if VERBOSE:
+            print(f"⏩ {md_file.name}: Skipping — not for {TARGET_BLOG}")
         continue
 
     # Output metadata if file matches blog
-    print(f"✅ {md_file.name}: matches {TARGET_BLOG}")
-    for key in ("title", "date", "slug"):
-        if key in front_matter:
-            print(f"  {key.capitalize()}: {front_matter[key]}")
+    print(f"✅  {md_file.name}: matches {TARGET_BLOG}")
+    # Define keys and default fallback values
+    keys_and_defaults = {
+        "title": "<no title>",
+        "date": "<no date>",
+        "slug": "<no slug>"
+    }
 
+    # Loop through each key and print the value (or fallback if missing)
+    for key, default in keys_and_defaults.items():
+        value = front_matter.get(key, default)
+        print(f"  {key.capitalize()}: {value}")
