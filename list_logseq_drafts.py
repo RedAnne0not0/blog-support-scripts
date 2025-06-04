@@ -43,6 +43,22 @@ def extract_front_matter(lines):
 
         elif stripped == "---":
             # End of front matter block
+ 
+            # # NOTE on edge case handling (see test case 6):
+            # This script intentionally does not support YAML front matter that is embedded
+            # within Markdown-style bullet lists (e.g., lines like `- ---`, `- title: Foo`, etc).
+            #
+            # Although our parser strips leading bullet characters (`-`, `*`, etc) when scanning
+            # for delimiters, lines like `- title: Foo` are still treated by PyYAML as part of
+            # a list, not a mapping. This causes YAML parsing to fail, since front matter is
+            # expected to be a dictionary (mapping) with key-value pairs.
+            #
+            # For robustness and clarity, we do not attempt to parse or normalize YAML that
+            # appears to be inside a list structure. If this becomes a real-world issue,
+            # one could extend the parser to:
+            #   - Detect list-style front matter and try to reformat it into a mapping
+            #   - Or issue a warning that such formatting is unsupported
+ 
             try:
                 front_matter_raw = "\n".join(front_matter_lines)
                 front_matter = yaml.safe_load(front_matter_raw)
