@@ -6,10 +6,21 @@
 
 from pathlib import Path  # pathlib is used for cleaner and more flexible file path handling
 import yaml  # PyYAML is used to parse YAML front matter (install with: pip install pyyaml)
+import argparse  #required for CLI arguments
 
 # ========== Configuration ==========
 # Toggle verbose logging (non-critical skips, warnings)
-VERBOSE = False 
+# VERBOSE = False ## Deprecated now uses CLI argument
+
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description="Process Logseq blog drafts.")  # sets up a parser and provides a description that will display when the script is called with `--help`
+parser.add_argument("--verbose", action="store_true", help="Enable verbose output")  # defines a --verbose flag
+args = parser.parse_args()
+# TODO: Add --target-blog argument to allow dynamic selection of blog (e.g., blog-personal, blog-multiplicite)
+# This will replace the hardcoded TARGET_BLOG value.
+
+# Use command-line argument to control verbosity
+VERBOSE = args.verbose  # Assigns VERBOSE the value `args.verbose`
 
 # Define the blog this script is targeting
 TARGET_BLOG = "blog-personal"
