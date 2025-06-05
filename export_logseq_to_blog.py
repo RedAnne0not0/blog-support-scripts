@@ -48,6 +48,9 @@ args = parser.parse_args()
 VERBOSE = args.verbose  # Assigns VERBOSE the value `args.verbose`
 ALLOW_OVERWRITE = args.overwrite
 
+# Track successfully copied files
+copied_files = []  # initialize
+
 # Ensure the target directory exists; if not, create it
 # 'parents=True' allows creation of nested directories
 # 'exist_ok=True' prevents error if the directory already exists
@@ -159,8 +162,16 @@ for md_file in markdown_files:
     if VERBOSE:
         print(f"✅ Exporting {md_file.name} → {target_path.name}")
     shutil.copy(md_file, target_path)
+    copied_files.append(slug) # accumulate log of copied files
 
 print("✅ Export complete.")
+
+if copied_files:
+    print("\n📝 Files copied:")
+    for slug in copied_files:
+        print(f"  - {slug}.md")
+else:
+    print("\nℹ️ No files were copied.")
 
 # --- former content for writing output presevered for future optional feature ---
     # Output metadata if file matches blog
