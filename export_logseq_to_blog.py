@@ -99,7 +99,7 @@ def extract_front_matter(lines):
                 front_matter = yaml.safe_load(front_matter_raw)
                 return front_matter, i  # Return parsed YAML and index of closing '---'
             except yaml.YAMLError as e:
-                print(f"⚠️ YAML parsing error: {e}")  # YAML header is invalid
+                print(f"⚠️ {md_file.name}: YAML parsing error: {e}")  # YAML header is invalid
                 return None, None
 
         else:
@@ -152,7 +152,7 @@ for md_file in markdown_files:
     # Skip if target exists, do not overwrite by default
     target_path = TARGET_DIR / f"{slug}.md"
     if target_path.exists() and not ALLOW_OVERWRITE:
-        print(f"⚠️ {target_path.name} already exists. Use --overwrite to replace it.")
+        print(f"⚠️ {md_file.name}: {target_path.name} already exists. Use --overwrite to replace it.")
         continue
 
     # Write content to new location
